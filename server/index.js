@@ -11,6 +11,12 @@ import { Server } from "socket.io";
 import { sendError, sendSuccess } from "./utils/response.js";
 
 import swaggerRouter from "./utils/swagger.js";
+import roleRouter from "./routes/role.route.js";
+import authRouter from "./routes/auth.route.js";
+import userRouter from "./routes/user.route.js";
+import subscriptionPlanRouter from "./routes/subscriptionPlan.route.js";
+import userSubscriptionPlanRouter from "./routes/userSubscriptionPlan.route.js";
+import categoryRouter from "./routes/category.route.js";
 
 dotenv.config();
 const app = express();
@@ -53,12 +59,12 @@ app.get("/", (req, res) => {
 app.use("/", swaggerRouter);
 
 // Route Middleware
-// app.use("/api/roles", roleRouter);
-// app.use("/api/auth", authRouter);
-// app.use("/api/users", userRouter);
-// app.use("/api/categories", categoryRouter);
-// app.use("/api/services", serviceRouter);
-// app.use("/api/reviews", reviewRouter);
+app.use("/api/v1/roles", roleRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/users", userRouter);
+app.use("/api/v1/subscription-plans", subscriptionPlanRouter);
+app.use("/api/v1/user-subscription-plans", userSubscriptionPlanRouter);
+app.use("/api/v1/categories", categoryRouter);
 // app.use("/api/category_request", categoryRequestRouter);
 // app.use("/api/jobs", jobRouter);
 // app.use("/api/notifications", notificationRouter);
