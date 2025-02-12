@@ -10,11 +10,11 @@ import { auth, admin } from "../utils/verify.js";
 
 const roleRouter = express.Router();
 
-roleRouter.get("/", auth, getRoles);
-roleRouter.get("/:id", auth, getRole);
+roleRouter.get("/", getRoles);
+roleRouter.get("/:id", getRole);
 
-roleRouter.post("/", auth, admin, createRole);
-roleRouter.patch("/:id", auth, admin, updateRole);
-roleRouter.delete("/:id", auth, admin, deleteRole);
+roleRouter.post("/", createRole);
+roleRouter.patch("/:id", updateRole);
+roleRouter.delete("/:id", deleteRole);
 
 export default roleRouter;

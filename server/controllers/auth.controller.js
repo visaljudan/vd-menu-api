@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import Role from "../models/role.model.js";
-import { isValidPhoneNumber, parsePhoneNumber } from "libphonenumber-js";
 import { sendError, sendSuccess } from "../utils/response.js";
 import { emitUserEvent } from "../utils/socketioFunctions.js";
 
@@ -32,9 +31,6 @@ import { emitUserEvent } from "../utils/socketioFunctions.js";
  *                 type: string
  *                 format: email
  *                 example: "visal@vdmenu.com"
- *               phoneNumber:
- *                 type: string
- *                 example: "+85595695191"
  *               password:
  *                 type: string
  *                 format: password
@@ -65,9 +61,6 @@ import { emitUserEvent } from "../utils/socketioFunctions.js";
  *                     email:
  *                       type: string
  *                       example: "john.doe@example.com"
- *                     phoneNumber:
- *                       type: string
- *                       example: "+1234567890"
  *                     roleId:
  *                       type: string
  *                       example: "60d0fe4f5311236168a109cb"
@@ -130,7 +123,7 @@ import { emitUserEvent } from "../utils/socketioFunctions.js";
 
 export const signup = async (req, res, next) => {
   try {
-    const { name, username, email, phoneNumber, password } = req.body;
+    const { name, username, email, password } = req.body;
 
     if (!name) {
       return sendError(res, 400, "Name is required.");
@@ -152,21 +145,6 @@ export const signup = async (req, res, next) => {
       return sendError(res, 409, "Email already exists.");
     }
 
-    if (!phoneNumber) {
-      return sendError(res, 400, "Phone number is required.");
-    }
-    if (!isValidPhoneNumber(phoneNumber)) {
-      return sendError(res, 400, "Invalid phone number format.");
-    }
-
-    const phone = parsePhoneNumber(phoneNumber);
-    const normalizedPhoneNumber = phone.formatInternational();
-
-    const existingPhoneNUmber = await User.findOne({ normalizedPhoneNumber });
-    if (existingPhoneNUmber) {
-      return sendError(res, 409, "Phone number already exists.");
-    }
-
     if (!password) {
       return sendError(res, 400, "Password is required.");
     }
@@ -181,7 +159,6 @@ export const signup = async (req, res, next) => {
       name,
       username,
       email,
-      phoneNumber: normalizedPhoneNumber,
       password: hashedPassword,
       roleId: role._id,
     });
@@ -224,7 +201,7 @@ export const signup = async (req, res, next) => {
  *             schema:
  *               type: object
  *               properties:
- *                 usernameOrEmailOrPhoneNumber:
+ *                 usernameOrEmail:
  *                   type: string
  *                   description: The username, email, or phone number of the user.
  *                   example: john_doe
@@ -233,7 +210,7 @@ export const signup = async (req, res, next) => {
  *                   description: The password of the user.
  *                   example: "password123"
  *               required:
- *                 - usernameOrEmailOrPhoneNumber
+ *                 - usernameOrEmail
  *                 - password
  *       responses:
  *         '200':
@@ -258,10 +235,6 @@ export const signup = async (req, res, next) => {
  *                         type: string
  *                         description: The email of the user.
  *                         example: "john.doe@example.com"
- *                       phoneNumber:
- *                         type: string
- *                         description: The phone number of the user.
- *                         example: "+1234567890"
  *                   token:
  *                     type: string
  *                     description: JWT token for the authenticated user.
@@ -300,25 +273,20 @@ export const signup = async (req, res, next) => {
 
 export const signin = async (req, res, next) => {
   try {
-    const { usernameOrEmailOrPhoneNumber, password } = req.body;
+    const { usernameOrEmail, password } = req.body;
 
-    if (!usernameOrEmailOrPhoneNumber || !password) {
-      return sendError(
-        res,
-        400,
-        "Username/Email/Phone Number and Password are required."
-      );
+    if (!usernameOrEmail) {
+      return sendError(res, 400, "Username/Email is required.");
+    }
+    if (!password) {
+      return sendError(res, 400, "Password is required.");
     }
 
     let user;
-    if (usernameOrEmailOrPhoneNumber.includes("@")) {
-      user = await User.findOne({ email: usernameOrEmailOrPhoneNumber });
-    } else if (isValidPhoneNumber(usernameOrEmailOrPhoneNumber)) {
-      const phone = parsePhoneNumber(usernameOrEmailOrPhoneNumber);
-      const normalizedPhoneNumber = phone.formatInternational();
-      user = await User.findOne({ normalizedPhoneNumber });
+    if (usernameOrEmail.includes("@")) {
+      user = await User.findOne({ email: usernameOrEmail });
     } else {
-      user = await User.findOne({ username: usernameOrEmailOrPhoneNumber });
+      user = await User.findOne({ username: usernameOrEmail });
     }
 
     if (!user) {

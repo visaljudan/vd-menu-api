@@ -8,7 +8,7 @@ const telegramRouter = express.Router();
 // telegramRouter.get("/", auth, getRoles);
 // telegramRouter.get("/:id", auth, getRole);
 
-telegramRouter.post("/", createTelegram);
+telegramRouter.post("/", auth, createTelegram);
 // telegramRouter.patch("/:id", auth, admin, updateRole);
 // telegramRouter.delete("/:id", auth, admin, deleteRole);
 
