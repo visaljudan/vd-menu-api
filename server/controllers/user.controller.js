@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import { sendError, sendSuccess } from "../utils/response.js";
 import { emitUserEvent } from "../utils/socketioFunctions.js";
+import Role from "../models/role.model.js";
 
 /**
  * @swagger
@@ -258,121 +259,145 @@ export const getUser = async (req, res, next) => {
 
 /**
  * @swagger
- * paths:
- *   /api/v1/users/{id}:
- *     patch:
- *       summary: Update user information
- *       description: Allows an admin or the user themselves to update user details such as name, email, phone number, and password.
- *       operationId: updateUser
- *       tags:
- *         - Users
- *       parameters:
- *         - in: path
- *           name: id
- *           required: true
- *           description: The ID of the user to update.
- *           schema:
- *             type: string
- *             example: "605c72ef153207001f16fa4"
- *       requestBody:
+ * /api/v1/users/{id}:
+ *   patch:
+ *     summary: Update a user
+ *     description: Update user information, including name, username, email, password, and roleId.
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: id
  *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Name of the user
+ *                 example: John Doe
+ *               username:
+ *                 type: string
+ *                 description: Username of the user
+ *                 example: johndoe
+ *               email:
+ *                 type: string
+ *                 description: Email of the user
+ *                 example: johndoe@example.com
+ *               password:
+ *                 type: string
+ *                 description: New password for the user
+ *                 example: newpassword123
+ *               roleId:
+ *                 type: string
+ *                 description: Role ID to assign to the user
+ *                 example: 64f8c1e6e8f57c002f78cabc
+ *     responses:
+ *       200:
+ *         description: User updated successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 name:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
  *                   type: string
- *                   description: The name of the user.
- *                   example: "John Doe"
- *                 email:
+ *                   example: User updated successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 64f8c1e6e8f57c002f78c123
+ *                     name:
+ *                       type: string
+ *                       example: John Doe
+ *                     username:
+ *                       type: string
+ *                       example: johndoe
+ *                     email:
+ *                       type: string
+ *                       example: johndoe@example.com
+ *                     roleId:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 64f8c1e6e8f57c002f78cabc
+ *                         name:
+ *                           type: string
+ *                           example: Admin
+ *                         slug:
+ *                           type: string
+ *                           example: admin
+ *       400:
+ *         description: Invalid input data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
  *                   type: string
- *                   description: The email address of the user.
- *                   example: "john.doe@example.com"
- *                 phoneNumber:
+ *                   example: Invalid user ID format.
+ *       404:
+ *         description: User or role not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
  *                   type: string
- *                   description: The phone number of the user (in international format).
- *                   example: "+1234567890"
- *                 password:
+ *                   example: User not found.
+ *       409:
+ *         description: Username or email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
  *                   type: string
- *                   description: The new password for the user.
- *                   example: "newpassword123"
- *       responses:
- *         '200':
- *           description: User successfully updated.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   user:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         description: The user ID.
- *                         example: "605c72ef153207001f16fa4"
- *                       name:
- *                         type: string
- *                         description: The name of the user.
- *                         example: "John Doe"
- *                       email:
- *                         type: string
- *                         description: The email of the user.
- *                         example: "john.doe@example.com"
- *                       phoneNumber:
- *                         type: string
- *                         description: The phone number of the user.
- *                         example: "+1234567890"
- *                       roleId:
- *                         type: object
- *                         properties:
- *                           _id:
- *                             type: string
- *                             example: "roleId12345"
- *                           name:
- *                             type: string
- *                             example: "User"
- *                       slug:
- *                         type: string
- *                         description: The slug for the role.
- *                         example: "user"
- *         '400':
- *           description: Invalid request or data format.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "Invalid phone number format."
- *         '404':
- *           description: User not found.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "User not found."
- *         '409':
- *           description: Conflict, such as when email or phone number already exists.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "Email already exists."
+ *                   example: Username already exists.
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: An unexpected error occurred.
  */
 
 export const updateUser = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, email, phoneNumber, password } = req.body;
+    const { name, username, email, password, roleId } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid user ID format.");
@@ -383,28 +408,20 @@ export const updateUser = async (req, res, next) => {
       return sendError(res, 404, "User not found.");
     }
 
+    if (username && username !== user.username) {
+      const existingUsername = await User.findOne({ username });
+      if (existingUsername) {
+        return sendError(res, 409, "Username already exists.");
+      }
+      user.username = username;
+    }
+
     if (email && email !== user.email) {
       const existingEmail = await User.findOne({ email });
       if (existingEmail) {
         return sendError(res, 409, "Email already exists.");
       }
       user.email = email;
-    }
-
-    if (phoneNumber && phoneNumber !== user.phoneNumber) {
-      if (!isValidPhoneNumber(phoneNumber)) {
-        return sendError(res, 400, "Invalid phone number format.");
-      }
-
-      const phone = parsePhoneNumber(phoneNumber);
-      const normalizedPhoneNumber = phone.formatInternational();
-
-      const existingPhoneNumber = await User.findOne({ normalizedPhoneNumber });
-      if (existingPhoneNumber) {
-        return sendError(res, 409, "Phone number already exists.");
-      }
-
-      user.phoneNumber = normalizedPhoneNumber;
     }
 
     if (name && name !== user.name) {
@@ -414,6 +431,19 @@ export const updateUser = async (req, res, next) => {
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       user.password = hashedPassword;
+    }
+
+    if (roleId && roleId !== user.roleId.toString()) {
+      if (!mongoose.Types.ObjectId.isValid(roleId)) {
+        return sendError(res, 400, "Invalid role ID format.");
+      }
+
+      const role = await Role.findById(roleId);
+      if (!role) {
+        return sendError(res, 404, "Role not found.");
+      }
+
+      user.roleId = roleId;
     }
 
     await user.save();
