@@ -2,11 +2,10 @@ import mongoose from "mongoose";
 
 const categorySchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      unique: true,
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Business",
       required: true,
-      trim: true,
     },
     slug: {
       type: String,

@@ -1,11 +1,14 @@
 import express from "express";
 
 import { auth, admin } from "../utils/verify.js";
-import { createTelegram } from "../controllers/telegram.controller.js";
+import {
+  createTelegram,
+  getTelegrams,
+} from "../controllers/telegram.controller.js";
 
 const telegramRouter = express.Router();
 
-// telegramRouter.get("/", auth, getRoles);
+telegramRouter.get("/", auth, getTelegrams);
 // telegramRouter.get("/:id", auth, getRole);
 
 telegramRouter.post("/", auth, createTelegram);

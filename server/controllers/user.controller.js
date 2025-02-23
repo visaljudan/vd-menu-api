@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import { sendError, sendSuccess } from "../utils/response.js";
