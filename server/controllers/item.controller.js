@@ -1,9 +1,10 @@
-import Item from "../models/Item.js";
-import { sendError, sendSuccess } from "../utils/responseHandler.js";
+import Category from "../models/category.model.js";
+import Item from "../models/item.model.js";
+import { sendError, sendSuccess } from "../utils/response.js";
 
 /**
  * @swagger
- * /items:
+ * /api/v1/items:
  *   post:
  *     summary: Create a new item
  *     tags: [Items]
@@ -59,10 +60,15 @@ export const createItem = async (req, res, next) => {
     const { categoryId, name, description, price, image, meta, tags, status } =
       req.body;
 
-    const categoryExists = await Category.findById(categoryId);
-    if (!categoryExists) return sendError(res, 400, "Invalid category ID");
+    // Validate category
+    const category = await Category.findById(categoryId);
+    if (!category) return sendError(res, 400, "Invalid category ID");
+
+    // Extract businessId from category
+    const businessId = category.businessId;
 
     const newItem = await Item.create({
+      businessId,
       categoryId,
       name,
       description,
@@ -81,7 +87,7 @@ export const createItem = async (req, res, next) => {
 
 /**
  * @swagger
- * /items:
+ * /api/v1/items:
  *   get:
  *     summary: Get a list of items
  *     tags: [Items]
@@ -136,7 +142,7 @@ export const getItems = async (req, res, next) => {
 
 /**
  * @swagger
- * /items/{id}:
+ * /api/v1/items/{id}:
  *   get:
  *     summary: Get a single item by ID
  *     tags: [Items]
@@ -169,7 +175,7 @@ export const getItem = async (req, res, next) => {
 
 /**
  * @swagger
- * /items/{id}:
+ * /api/v1/items/{id}:
  *   put:
  *     summary: Update an item by ID
  *     tags: [Items]
@@ -214,14 +220,65 @@ export const getItem = async (req, res, next) => {
  */
 export const updateItem = async (req, res, next) => {
   try {
-    const updatedItem = await Item.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const { id } = req.params;
+    const { categoryId, name, description, price, image, meta, tags, status } =
+      req.body;
+    const userId = req.user._id;
+    const userRole = req.user.roleId?.slug;
 
-    if (!updatedItem) return sendError(res, 404, "Item not found");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid item ID format");
+    }
 
-    return sendSuccess(res, 200, "Item updated successfully", updatedItem);
+    const item = await Item.findById(id);
+    if (!item) {
+      return sendError(res, 404, "Item not found");
+    }
+
+    // Validate category if it's being changed
+    let businessId = item.businessId;
+    if (categoryId && categoryId !== item.categoryId.toString()) {
+      const category = await Category.findById(categoryId);
+      if (!category) return sendError(res, 400, "Invalid category ID");
+      businessId = category.businessId;
+    }
+
+    // Check permission: Only the business owner or an admin can update
+    const business = await Business.findById(businessId);
+    if (!business) {
+      return sendError(res, 404, "Business not found");
+    }
+
+    if (
+      userId.toString() !== business.userId.toString() &&
+      userRole !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "Permission denied: Only the business owner or an admin can update this item."
+      );
+    }
+
+    // Update item fields
+    item.categoryId = categoryId || item.categoryId;
+    item.businessId = businessId;
+    if (name) item.name = name;
+    if (description) item.description = description;
+    if (price) item.price = price;
+    if (image) item.image = image;
+    if (meta) item.meta = meta;
+    if (tags) item.tags = tags;
+    if (status) {
+      if (!["active", "inactive"].includes(status)) {
+        return sendError(res, 400, "Status must be 'active' or 'inactive'");
+      }
+      item.status = status;
+    }
+
+    await item.save();
+
+    return sendSuccess(res, 200, "Item updated successfully", item);
   } catch (error) {
     next(error);
   }
@@ -229,7 +286,7 @@ export const updateItem = async (req, res, next) => {
 
 /**
  * @swagger
- * /items/{id}:
+ * /api/v1/items/{id}:
  *   delete:
  *     summary: Delete an item by ID
  *     tags: [Items]
@@ -250,8 +307,40 @@ export const updateItem = async (req, res, next) => {
  */
 export const deleteItem = async (req, res, next) => {
   try {
-    const deletedItem = await Item.findByIdAndDelete(req.params.id);
-    if (!deletedItem) return sendError(res, 404, "Item not found");
+    const { id } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.roleId?.slug;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid item ID format");
+    }
+
+    const item = await Item.findById(id);
+    if (!item) {
+      return sendError(res, 404, "Item not found");
+    }
+
+    // Fetch business to check ownership
+    const business = await Business.findById(item.businessId);
+    if (!business) {
+      return sendError(res, 404, "Business not found");
+    }
+
+    // Permission check: Only the business owner or an admin can delete the item
+    if (
+      userId.toString() !== business.userId.toString() &&
+      userRole !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "Permission denied: Only the business owner or an admin can delete this item."
+      );
+    }
+
+    await Item.findByIdAndDelete(id);
+
+    emitItemEvent("itemDeleted", id);
 
     return sendSuccess(res, 200, "Item deleted successfully");
   } catch (error) {

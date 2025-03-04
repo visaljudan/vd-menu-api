@@ -19,3 +19,7 @@ export const emitUserSubscriptionPlan = (event, data) => {
 export const emitCategoryEvent = (event, data) => {
   io.emit(event, data);
 };
+
+export const emitItemEvent = (event, data) => {
+  io.emit(event, data);
+};

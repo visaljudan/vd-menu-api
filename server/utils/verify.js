@@ -46,6 +46,7 @@ export const admin = async (req, res, next) => {
   if (role.slug !== "admin") {
     return sendError(res, 403, "Access denied. Admin role required.");
   }
+  next();
 };
 
 export const ownerOrAdmin = async (req, res, next) => {

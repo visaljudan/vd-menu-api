@@ -1,14 +1,21 @@
 import express from "express";
 
 import { auth, admin } from "../utils/verify.js";
+import {
+  createItem,
+  deleteItem,
+  getItem,
+  getItems,
+  updateItem,
+} from "../controllers/item.controller.js";
 
-const itemsRouter = express.Router();
+const itemRouter = express.Router();
 
-// itemsRouter.get("/", getCategories);
-// itemsRouter.get("/:id", getCategory);
+itemRouter.get("/", getItems);
+itemRouter.get("/:id", getItem);
 
-// itemsRouter.post("/", createCategory);
-// itemsRouter.patch("/:id", updateCategory);
-// itemsRouter.delete("/:id", auth, admin, deleteCategory);
+itemRouter.post("/", createItem);
+itemRouter.patch("/:id", updateItem);
+itemRouter.delete("/:id", deleteItem);
 
-export default itemsRouter;
+export default itemRouter;

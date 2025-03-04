@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import Category from "../models/category.model.js";
-import { sendError, sendSuccess } from "../utils/response.js";
+import Business from "../models/business.model.js";
 import { emitCategoryEvent } from "../utils/socketioFunctions.js";
+import { sendError, sendSuccess } from "../utils/response.js";
 
 /**
  * @swagger
@@ -21,6 +22,10 @@ import { emitCategoryEvent } from "../utils/socketioFunctions.js";
  *             required:
  *               - name
  *             properties:
+ *              businessId:
+ *                 type: string
+ *                 description: The id of the business
+ *                 example: ""
  *               name:
  *                 type: string
  *                 description: The name of the category
@@ -37,79 +42,49 @@ import { emitCategoryEvent } from "../utils/socketioFunctions.js";
  *     responses:
  *       201:
  *         description: Category created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Category created successfully"
- *                 category:
- *                   type: object
- *                   properties:
- *                     name:
- *                       type: string
- *                       example: "Electronics"
- *                     slug:
- *                       type: string
- *                       example: "electronics"
- *                     description:
- *                       type: string
- *                       example: "Category for electronic products"
- *                     status:
- *                       type: string
- *                       example: "active"
  *       400:
  *         description: Bad request due to missing or invalid parameters
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Name is required to create a category"
  *       409:
  *         description: Conflict due to category name or slug already existing
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Category name already exists"
  *       500:
  *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "An unexpected error occurred"
  */
 export const createCategory = async (req, res, next) => {
   try {
-    const { name, description, status } = req.body;
+    const { businessId, name, description, status } = req.body;
+
+    if (!businessId) {
+      return sendError(res, 400, "Business ID is required");
+    }
 
     if (!name) {
       return sendError(res, 400, "Name is required to create a category");
     }
 
-    const existingName = await Category.findOne({
-      name: { $regex: new RegExp(`^${name}$`, "i") },
-    });
-
-    if (existingName) {
-      return sendError(res, 409, "Category name already exists");
+    // Check Business
+    if (!mongoose.Types.ObjectId.isValid(businessId)) {
+      return sendError(res, 400, "Invalid business ID format");
+    }
+    const business = await Business.findById(businessId);
+    if (!business) {
+      return sendError(res, 404, "Business not found");
     }
 
+    // Check if the category name exists for the same user
+    const existingCategory = await Category.findOne({
+      name: { $regex: new RegExp(`^${name}$`, "i") },
+      businessId,
+    });
+
+    if (existingCategory) {
+      return sendError(res, 409, "Category name already exists for this user");
+    }
+
+    // Generate a unique slug (unique across all users)
     const slug = name.toLowerCase().replace(/\s+/g, "-");
     const existingSlug = await Category.findOne({
       slug: { $regex: new RegExp(`^${slug}$`, "i") },
+      businessId,
     });
 
     if (existingSlug) {
@@ -127,6 +102,7 @@ export const createCategory = async (req, res, next) => {
       slug,
       description,
       status: newCategoryStatus,
+      businessId,
     });
 
     await category.save();
@@ -464,6 +440,8 @@ export const updateCategory = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, description, status } = req.body;
+    const userId = req.user._id;
+    const userRole = req.user.roleId?.slug;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid category ID format");
@@ -478,17 +456,54 @@ export const updateCategory = async (req, res, next) => {
       return sendError(res, 400, "Status must be 'active' or 'inactive'");
     }
 
+    // Check permission: Only owner or admin can proceed
+    const business = await Business.findById(category.businessId);
+    if (
+      userId.toString() !== business.userId.toString() &&
+      userRole !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "Permission denied: Only the owner or an admin can update this business."
+      );
+    }
+
+    // Check if name exists in the same business
     if (name && name !== category.name) {
       const existingName = await Category.findOne({
         name: { $regex: new RegExp(`^${name}$`, "i") },
+        businessId: category.businessId,
+        _id: { $ne: id },
       });
+
       if (existingName) {
-        return sendError(res, 409, "Category name already exists");
+        return sendError(
+          res,
+          409,
+          "Category name already exists for this business"
+        );
       }
-      category.slug = name.toLowerCase().replace(/\s+/g, "-");
+
+      const slug = name.toLowerCase().replace(/\s+/g, "-");
+      const existingSlug = await Category.findOne({
+        slug: { $regex: new RegExp(`^${slug}$`, "i") },
+        businessId: category.businessId,
+        _id: { $ne: id },
+      });
+
+      if (existingSlug) {
+        return sendError(
+          res,
+          409,
+          "Category slug already exists for this business"
+        );
+      }
+
+      category.name = name;
+      category.slug = slug;
     }
 
-    if (name) category.name = name;
     if (description) category.description = description;
     if (status) category.status = status;
 
@@ -571,10 +586,24 @@ export const deleteCategory = async (req, res, next) => {
       return sendError(res, 400, "Invalid category ID format");
     }
 
-    const category = await Category.findByIdAndDelete(id);
+    const category = await Category.findById(id);
     if (!category) {
       return sendError(res, 404, "Category not found");
     }
+    // Check permission: Only owner or admin can proceed
+    const business = await Business.findById(category.businessId);
+    if (
+      userId.toString() !== business.userId.toString() &&
+      userRole !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "Permission denied: Only the owner or an admin can update this business."
+      );
+    }
+
+    await Category.findByIdAndDelete(id);
 
     emitCategoryEvent("categoryDeleted", id);
 

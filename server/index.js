@@ -18,7 +18,10 @@ import subscriptionPlanRouter from "./routes/subscriptionPlan.route.js";
 import userSubscriptionPlanRouter from "./routes/userSubscriptionPlan.route.js";
 import categoryRouter from "./routes/category.route.js";
 import telegramRouter from "./routes/telegram.route.js";
-import itemsRouter from "./routes/item.route.js";
+import itemRouter from "./routes/item.route.js";
+import businessRouter from "./routes/business.route.js";
+import orderRouter from "./routes/order.route.js";
+import orderItemRouter from "./routes/orderItem.route.js";
 
 dotenv.config();
 const app = express();
@@ -66,12 +69,12 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/subscription-plans", subscriptionPlanRouter);
 app.use("/api/v1/user-subscription-plans", userSubscriptionPlanRouter);
-app.use("/api/v1/categories", categoryRouter);
 app.use("/api/v1/telegrams", telegramRouter);
-app.use("/api/v1/items", itemsRouter);
-// app.use("/api/notifications", notificationRouter);
-// app.use("/api/messages", messageRouter);
-// app.use("/api/favorites", favoriteRouter);
+app.use("/api/v1/businesses", businessRouter);
+app.use("/api/v1/categories", categoryRouter);
+app.use("/api/v1/items", itemRouter);
+app.use("/api/v1/orders", orderRouter);
+app.use("/api/v1/order-items", orderItemRouter);
 
 app.get("/socket-io", (req, res) => {
   sendSuccess(res, 200, "Socket.IO Server is running");
