@@ -9,18 +9,16 @@ const TelegramSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      unique: false,
       trim: true,
     },
     username: {
       type: String,
-      unique: false,
       trim: true,
     },
     phoneNumber: {
       type: String,
       required: true,
-      unique: false,
+      // unique: true,
       trim: true,
     },
     status: {

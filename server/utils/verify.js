@@ -15,16 +15,19 @@ export const auth = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({
-      userId: decoded.userId,
-      username: decoded.username,
+      _id: decoded.userId,
     });
 
     if (!user) {
       return sendError(res, 404, "User not found!");
     }
 
-    req.user = user;
+    const populatedUser = await User.findById(user._id).populate(
+      "roleId",
+      "name slug"
+    );
 
+    req.user = populatedUser;
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {
@@ -47,22 +50,4 @@ export const admin = async (req, res, next) => {
     return sendError(res, 403, "Access denied. Admin role required.");
   }
   next();
-};
-
-export const ownerOrAdmin = async (req, res, next) => {
-  const user = req.user;
-  const { id } = req.params;
-  const role = await Role.findById(user.roleId);
-
-  if (!role) {
-    return sendError(res, 404, "Role not found.");
-  }
-
-  if (role.slug === "admin" || user._id === id) {
-    return sendError(
-      res,
-      403,
-      "Access denied. You are not authorized to access this resource."
-    );
-  }
 };

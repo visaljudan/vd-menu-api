@@ -1,98 +1,7 @@
 import mongoose from "mongoose";
 import SubscriptionPlan from "../models/subscriptionPlan.model.js";
 import { sendError, sendSuccess } from "../utils/response.js";
-
-/**
- * @swagger
- * /api/v1/subscription-plans:
- *   post:
- *     summary: Create a new subscription plan
- *     description: Adds a new subscription plan with name, price, duration, features, and other properties.
- *     tags:
- *       - Subscription Plans
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - price
- *               - duration
- *               - feature
- *               - maxBusiness
- *               - maxCategory
- *               - maxItem
- *               - analysisType
- *             properties:
- *               name:
- *                 type: string
- *                 example: "Premium Plan"
- *               price:
- *                 type: number
- *                 example: 29.99
- *               duration:
- *                 type: integer
- *                 example: 30
- *               feature:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: ["Advanced Analytics", "Priority Support"]
- *               maxBusiness:
- *                 type: integer
- *                 example: 5
- *               maxCategory:
- *                 type: integer
- *                 example: 10
- *               maxItem:
- *                 type: integer
- *                 example: 100
- *               analysisType:
- *                 type: string
- *                 enum: ["basic", "advanced"]
- *                 example: "advanced"
- *               status:
- *                 type: string
- *                 enum: ["active", "inactive"]
- *                 example: "active"
- *     responses:
- *       201:
- *         description: Subscription plan created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Subscription plan created successfully"
- *                 plan:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: "65a1234567b89c0123d45678"
- *                     name:
- *                       type: string
- *                       example: "Premium Plan"
- *                     price:
- *                       type: number
- *                       example: 29.99
- *                     duration:
- *                       type: integer
- *                       example: 30
- *                     status:
- *                       type: string
- *                       example: "active"
- *       400:
- *         description: Validation error or missing fields
- *       409:
- *         description: Subscription plan with the same name or slug already exists
- *       500:
- *         description: Server error
- */
+import { emitSubscriptionPlan } from "../utils/socketioFunctions.js";
 
 export const createSubscriptionPlan = async (req, res, next) => {
   try {
@@ -108,21 +17,31 @@ export const createSubscriptionPlan = async (req, res, next) => {
       status,
     } = req.body;
 
-    // Validate required fields
-    if (
-      !name ||
-      !price ||
-      !duration ||
-      !feature ||
-      !maxBusiness ||
-      !maxCategory ||
-      !maxItem ||
-      !analysisType
-    ) {
-      return sendError(res, 400, "All required fields must be provided.");
+    if (!name) {
+      return sendError(res, 400, "Package name is required.");
+    }
+    if (!price) {
+      return sendError(res, 400, "Package price is required.");
+    }
+    if (!duration) {
+      return sendError(res, 400, "Package duration is required.");
+    }
+    if (!feature) {
+      return sendError(res, 400, "Package feature is required.");
+    }
+    if (!maxBusiness) {
+      return sendError(res, 400, "Maximum business count is required.");
+    }
+    if (!maxCategory) {
+      return sendError(res, 400, "Maximum category count is required.");
+    }
+    if (!maxItem) {
+      return sendError(res, 400, "Maximum item count is required.");
+    }
+    if (!analysisType) {
+      return sendError(res, 400, "Analysis type is required.");
     }
 
-    // Check if plan name already exists
     const existingPlan = await SubscriptionPlan.findOne({
       name: { $regex: new RegExp(`^${name}$`, "i") },
     });
@@ -130,8 +49,7 @@ export const createSubscriptionPlan = async (req, res, next) => {
       return sendError(res, 409, "Subscription plan name already exists.");
     }
 
-    // Generate slug from name
-    const slug = name.toLowerCase().replace(/\s+/g, "-");
+    const slug = name?.toLowerCase().replace(/\s+/g, "-");
     const existingSlug = await SubscriptionPlan.findOne({
       slug: { $regex: new RegExp(`^${slug}$`, "i") },
     });
@@ -139,13 +57,10 @@ export const createSubscriptionPlan = async (req, res, next) => {
       return sendError(res, 409, "Subscription plan slug already exists.");
     }
 
-    // Validate status
-    const validStatus = status || "active";
-    if (!["active", "inactive"].includes(validStatus)) {
-      return sendError(res, 400, "Status must be 'active' or 'inactive'.");
+    if (status && !["active", "inactive"].includes(status)) {
+      return sendError(res, 400, "Status must be 'active' or 'inactive'");
     }
 
-    // Create new subscription plan
     const plan = new SubscriptionPlan({
       name,
       slug,
@@ -156,10 +71,12 @@ export const createSubscriptionPlan = async (req, res, next) => {
       maxCategory,
       maxItem,
       analysisType,
-      status: validStatus,
+      status: status || "active",
     });
 
     await plan.save();
+
+    emitSubscriptionPlan("subscriptionPlanCreated", plan);
 
     return sendSuccess(
       res,
@@ -171,104 +88,6 @@ export const createSubscriptionPlan = async (req, res, next) => {
     next(error);
   }
 };
-
-/**
- * @swagger
- * /api/v1/subscription-plans:
- *   get:
- *     summary: Get a list of subscription plans
- *     description: Retrieve a paginated list of subscription plans with sorting and search functionality.
- *     tags:
- *       - Subscription Plans
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: The page number (default = 1)
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Number of plans per page (default = 10)
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *         description: Field to sort by (default = createdAt)
- *       - in: query
- *         name: order
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *         description: Sort order (default = desc)
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search by name or slug
- *     responses:
- *       200:
- *         description: Subscription plans retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 total:
- *                   type: integer
- *                   example: 25
- *                 page:
- *                   type: integer
- *                   example: 1
- *                 limit:
- *                   type: integer
- *                   example: 10
- *                 plans:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         example: "65a1234567b89c0123d45678"
- *                       name:
- *                         type: string
- *                         example: "Premium Plan"
- *                       slug:
- *                         type: string
- *                         example: "premium-plan"
- *                       price:
- *                         type: number
- *                         example: 29.99
- *                       duration:
- *                         type: integer
- *                         example: 30
- *                       feature:
- *                         type: array
- *                         items:
- *                           type: string
- *                         example: ["Advanced Analytics", "Priority Support"]
- *                       maxBusiness:
- *                         type: integer
- *                         example: 5
- *                       maxCategory:
- *                         type: integer
- *                         example: 10
- *                       maxItem:
- *                         type: integer
- *                         example: 100
- *                       analysisType:
- *                         type: string
- *                         example: "advanced"
- *                       status:
- *                         type: string
- *                         example: "active"
- *       400:
- *         description: Invalid request parameters
- *       500:
- *         description: Server error
- */
 
 export const getSubscriptionPlans = async (req, res, next) => {
   try {
@@ -308,59 +127,6 @@ export const getSubscriptionPlans = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/v1/subscription-plans/{id}:
- *   get:
- *     summary: Get a subscription plan by ID
- *     description: Retrieve details of a specific subscription plan using its ID.
- *     tags:
- *       - Subscription Plans
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           example: "65a1234567b89c0123d45678"
- *         description: The ID of the subscription plan.
- *     responses:
- *       200:
- *         description: Subscription plan retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Subscription plan fetched successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: "65a1234567b89c0123d45678"
- *                     name:
- *                       type: string
- *                       example: "Premium Plan"
- *                     price:
- *                       type: number
- *                       example: 29.99
- *                     duration:
- *                       type: integer
- *                       example: 30
- *                     status:
- *                       type: string
- *                       example: "active"
- *       400:
- *         description: Invalid subscription plan ID format
- *       404:
- *         description: Subscription plan not found
- *       500:
- *         description: Server error
- */
-
 export const getSubscriptionPlan = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -370,7 +136,6 @@ export const getSubscriptionPlan = async (req, res, next) => {
     }
 
     const plan = await SubscriptionPlan.findById(id);
-
     if (!plan) {
       return sendError(res, 404, "Subscription plan not found");
     }
@@ -386,107 +151,9 @@ export const getSubscriptionPlan = async (req, res, next) => {
   }
 };
 
-/**
- * @swagger
- * /api/v1/subscription-plans/{id}:
- *   patch:
- *     summary: Update a subscription plan
- *     description: Update the details of a subscription plan by its ID.
- *     tags:
- *       - Subscription Plans
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           example: "65a1234567b89c0123d45678"
- *         description: The ID of the subscription plan to update.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 example: "Premium Plan"
- *               price:
- *                 type: number
- *                 example: 29.99
- *               duration:
- *                 type: integer
- *                 example: 30
- *               feature:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: ["Feature1", "Feature2"]
- *               maxBusiness:
- *                 type: integer
- *                 example: 10
- *               maxCategory:
- *                 type: integer
- *                 example: 5
- *               maxItem:
- *                 type: integer
- *                 example: 100
- *               analysisType:
- *                 type: string
- *                 enum: ["basic", "advanced"]
- *                 example: "basic"
- *               status:
- *                 type: string
- *                 enum: ["active", "inactive"]
- *                 example: "active"
- *     responses:
- *       200:
- *         description: Subscription plan updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Subscription plan updated successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: "65a1234567b89c0123d45678"
- *                     name:
- *                       type: string
- *                       example: "Premium Plan"
- *                     price:
- *                       type: number
- *                       example: 29.99
- *                     duration:
- *                       type: integer
- *                       example: 30
- *                     status:
- *                       type: string
- *                       example: "active"
- *       400:
- *         description: Invalid subscription plan ID format or missing required fields
- *       404:
- *         description: Subscription plan not found
- *       500:
- *         description: Server error
- */
-
 export const updateSubscriptionPlan = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return sendError(res, 400, "Invalid subscription plan ID format");
-    }
-
-    // Destructure body fields
     const {
       name,
       price,
@@ -499,11 +166,39 @@ export const updateSubscriptionPlan = async (req, res, next) => {
       status,
     } = req.body;
 
-    // Find and update the subscription plan by ID
-    const plan = await SubscriptionPlan.findByIdAndUpdate(
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid Subscription Plan ID format");
+    }
+
+    const plan = await SubscriptionPlan.findById(id);
+    if (!plan) {
+      return sendError(res, 404, "Subscription plan not found");
+    }
+
+    const existingPlan = await SubscriptionPlan.findOne({
+      name: { $regex: new RegExp(`^${name}$`, "i") },
+    });
+    if (existingPlan) {
+      return sendError(res, 409, "Subscription plan name already exists.");
+    }
+
+    const slug = name?.toLowerCase().replace(/\s+/g, "-");
+    const existingSlug = await SubscriptionPlan.findOne({
+      slug: { $regex: new RegExp(`^${slug}$`, "i") },
+    });
+    if (existingSlug) {
+      return sendError(res, 409, "Subscription plan slug already exists.");
+    }
+
+    if (status && !["active", "inactive"].includes(status)) {
+      return sendError(res, 400, "Status must be 'active' or 'inactive'");
+    }
+
+    const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(
       id,
       {
         name,
+        slug,
         price,
         duration,
         feature,
@@ -513,58 +208,24 @@ export const updateSubscriptionPlan = async (req, res, next) => {
         analysisType,
         status,
       },
-      { new: true, runValidators: true } // Return the updated document and validate
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
-    if (!plan) {
-      return sendError(res, 404, "Subscription plan not found");
-    }
+    emitSubscriptionPlan("subscriptionPlanUpdated", updatedPlan);
 
     return sendSuccess(
       res,
       200,
       "Subscription plan updated successfully",
-      plan
+      updatedPlan
     );
   } catch (error) {
     next(error);
   }
 };
-
-/**
- * @swagger
- * /api/v1/subscription-plans/{id}:
- *   delete:
- *     summary: Delete a subscription plan
- *     description: Deletes a subscription plan by its ID.
- *     tags:
- *       - Subscription Plans
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           example: "65a1234567b89c0123d45678"
- *         description: The ID of the subscription plan to delete.
- *     responses:
- *       200:
- *         description: Subscription plan deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Subscription plan deleted successfully"
- *       400:
- *         description: Invalid subscription plan ID format
- *       404:
- *         description: Subscription plan not found
- *       500:
- *         description: Server error
- */
 
 export const deleteSubscriptionPlan = async (req, res, next) => {
   try {
@@ -575,12 +236,14 @@ export const deleteSubscriptionPlan = async (req, res, next) => {
       return sendError(res, 400, "Invalid subscription plan ID format");
     }
 
-    // Find and delete the subscription plan
-    const plan = await SubscriptionPlan.findByIdAndDelete(id);
-
+    const plan = await SubscriptionPlan.findById(id);
     if (!plan) {
-      return sendError(res, 404, "Subscription plan not found");
+      return sendError(res, 404, "Subscription Plan not found");
     }
+
+    await SubscriptionPlan.findByIdAndDelete(id);
+
+    emitSubscriptionPlan("subscriptionPlanDeleted", id);
 
     return sendSuccess(res, 200, "Subscription plan deleted successfully");
   } catch (error) {

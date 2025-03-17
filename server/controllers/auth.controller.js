@@ -5,122 +5,6 @@ import Role from "../models/role.model.js";
 import { sendError, sendSuccess } from "../utils/response.js";
 import { emitUserEvent } from "../utils/socketioFunctions.js";
 
-/**
- * @swagger
- * /api/v1/auth/signup:
- *   post:
- *     summary: "Create a new user account"
- *     description: "Registers a new user with the provided details."
- *     operationId: signup
- *     tags:
- *       - "Auth"
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 example: "Visal Judan"
- *               username:
- *                 type: string
- *                 example: "visal"
- *               email:
- *                 type: string
- *                 format: email
- *                 example: "visal@vdmenu.com"
- *               password:
- *                 type: string
- *                 format: password
- *                 example: "password123"
- *     responses:
- *       201:
- *         description: "User created successfully"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "User created successfully"
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       example: "60d0fe4f5311236168a109ca"
- *                     name:
- *                       type: string
- *                       example: "John Doe"
- *                     username:
- *                       type: string
- *                       example: "johndoe"
- *                     email:
- *                       type: string
- *                       example: "john.doe@example.com"
- *                     roleId:
- *                       type: string
- *                       example: "60d0fe4f5311236168a109cb"
- *                     role:
- *                       type: object
- *                       properties:
- *                         roleId:
- *                           type: string
- *                           example: "60d0fe4f5311236168a109cb"
- *                         name:
- *                           type: string
- *                           example: "user"
- *                         slug:
- *                           type: string
- *                           example: "user"
- *                 token:
- *                   type: string
- *                   example: "jwtTokenHere"
- *       400:
- *         description: "Missing required fields or invalid input"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Name is required."
- *       409:
- *         description: "Conflict with existing data (e.g., username, email, or phone number already exists)"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Username already exists."
- *       404:
- *         description: "Role not found"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Role not found."
- *       500:
- *         description: "Internal server error"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "An unexpected error occurred"
- */
-
 export const signup = async (req, res, next) => {
   try {
     const { name, username, email, password } = req.body;
@@ -165,14 +49,12 @@ export const signup = async (req, res, next) => {
 
     await newUser.save();
 
-    const populatedUser = await User.findOne({
-      roleId: newUser.roleId,
-    }).populate("roleId", "name slug");
-
-    const token = jwt.sign(
-      { user: newUser._id, username: newUser.username },
-      process.env.JWT_SECRET
+    const populatedUser = await User.findById(newUser._id).populate(
+      "roleId",
+      "name slug"
     );
+
+    const token = jwt.sign({ user: newUser._id }, process.env.JWT_SECRET);
 
     const { password: pass, ...rest } = populatedUser._doc;
 
@@ -186,93 +68,6 @@ export const signup = async (req, res, next) => {
     next(error);
   }
 };
-
-/**
- * @swagger
- * paths:
- *   /api/v1/auth/signin:
- *     post:
- *       summary: User Sign-in
- *       description: Allows a user to sign in using their username, email, or phone number and password.
- *       operationId: signin
- *       tags:
- *         - "Auth"
- *       requestBody:
- *         required: true
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 usernameOrEmail:
- *                   type: string
- *                   description: The username, email, or phone number of the user.
- *                   example: john_doe
- *                 password:
- *                   type: string
- *                   description: The password of the user.
- *                   example: "password123"
- *               required:
- *                 - usernameOrEmail
- *                 - password
- *       responses:
- *         '200':
- *           description: User successfully signed in.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   user:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         description: The user ID.
- *                         example: "605c72ef153207001f16fa4"
- *                       username:
- *                         type: string
- *                         description: The username of the user.
- *                         example: "john_doe"
- *                       email:
- *                         type: string
- *                         description: The email of the user.
- *                         example: "john.doe@example.com"
- *                   token:
- *                     type: string
- *                     description: JWT token for the authenticated user.
- *                     example: "jwt_token_string"
- *         '400':
- *           description: Missing required fields or incorrect data.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "Username/Email/Phone Number and Password are required."
- *         '404':
- *           description: User not found.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "User not found."
- *         '409':
- *           description: Incorrect password.
- *           content:
- *             application/json:
- *               schema:
- *                 type: object
- *                 properties:
- *                   message:
- *                     type: string
- *                     example: "Invalid password."
- */
 
 export const signin = async (req, res, next) => {
   try {
@@ -301,10 +96,7 @@ export const signin = async (req, res, next) => {
       return sendError(res, 409, "Invalid password.");
     }
 
-    const token = jwt.sign(
-      { user: user._id, username: user.username },
-      process.env.JWT_SECRET
-    );
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
 
     const populatedUser = await User.findById(user._id).populate(
       "roleId",
@@ -334,10 +126,7 @@ export const google = async (req, res, next) => {
     // If user already exists, sign in
     if (user) {
       const { password: pass, ...rest } = user._doc;
-      const token = jwt.sign(
-        { user: user._id, username: user.username },
-        process.env.JWT_SECRET
-      );
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
       return sendSuccess(res, 200, "User signed in successfully", {
         user: rest,
         token,
@@ -390,11 +179,7 @@ export const google = async (req, res, next) => {
       "name slug"
     );
 
-    const token = jwt.sign(
-      { user: newUser._id, username: newUser.username },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET);
 
     const { password: pass, ...rest } = populatedUser._doc;
 

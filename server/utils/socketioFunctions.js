@@ -12,6 +12,14 @@ export const emitUserEvent = (event, data) => {
   io.emit(event, data);
 };
 
+export const emitTelegramEvent = (event, data) => {
+  io.emit(event, data);
+};
+
+export const emitBusinessEvent = (event, data) => {
+  io.emit(event, data);
+};
+
 export const emitUserSubscriptionPlan = (event, data) => {
   io.emit(event, data);
 };
