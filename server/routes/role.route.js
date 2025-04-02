@@ -173,7 +173,7 @@ roleRouter.get("/:id", auth, admin, getRole);
  *         description: "Internal server error"
  */
 
-roleRouter.patch("/:id", auth, admin.apply, updateRole);
+roleRouter.patch("/:id", auth, admin, updateRole);
 
 /**
  * @swagger
