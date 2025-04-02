@@ -33,7 +33,7 @@ const swaggerOptions = {
     ],
   },
 
-  apis: [path.resolve(__dirname, "../routes/*.js")],
+  apis: [path.resolve(__dirname, "../swagger/*.js")],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
