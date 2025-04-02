@@ -18,7 +18,7 @@ import subscriptionPlanRouter from "./routes/subscriptionPlan.route.js";
 import userSubscriptionPlanRouter from "./routes/userSubscriptionPlan.route.js";
 import categoryRouter from "./routes/category.route.js";
 import telegramRouter from "./routes/telegram.route.js";
-// import itemRouter from "./routes/item.route.js";
+import itemRouter from "./routes/item.route.js";
 import businessRouter from "./routes/business.route.js";
 import orderRouter from "./routes/order.route.js";
 import orderItemRouter from "./routes/orderItem.route.js";
@@ -72,7 +72,7 @@ app.use("/api/v1/user-subscription-plans", userSubscriptionPlanRouter);
 app.use("/api/v1/telegrams", telegramRouter);
 app.use("/api/v1/businesses", businessRouter);
 app.use("/api/v1/categories", categoryRouter);
-// app.use("/api/v1/items", itemRouter);
+app.use("/api/v1/items", itemRouter);
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/order-items", orderItemRouter);
 
