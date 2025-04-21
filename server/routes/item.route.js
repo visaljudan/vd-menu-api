@@ -11,7 +11,7 @@ import {
 
 const itemRouter = express.Router();
 
-itemRouter.get("/", auth, getItems);
+itemRouter.get("/", getItems);
 itemRouter.get("/:id", auth, getItem);
 itemRouter.post("/", auth, createItem);
 itemRouter.patch("/:id", auth, updateItem);

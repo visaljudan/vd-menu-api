@@ -58,7 +58,7 @@ export const createBusiness = async (req, res, next) => {
       name,
       description,
       location,
-      logo, 
+      logo,
       image,
       status: status || "active",
     });

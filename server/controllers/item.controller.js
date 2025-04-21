@@ -74,11 +74,20 @@ export const getItems = async (req, res, next) => {
       sort = "createdAt",
       order = "desc",
       search = "",
+      userId,
     } = req.query;
 
     const skip = (page - 1) * limit;
     const query = {};
 
+    // Step 1: If userId is provided, find all businessIds owned by this user
+    if (userId) {
+      const businesses = await Business.find({ userId }).select("_id");
+      const businessIds = businesses.map((b) => b._id);
+      query.businessId = { $in: businessIds };
+    }
+
+    // Step 2: Add search condition
     if (search) {
       query.$or = [
         { name: { $regex: new RegExp(search, "i") } },
@@ -87,6 +96,7 @@ export const getItems = async (req, res, next) => {
     }
 
     const sortOrder = order === "asc" ? 1 : -1;
+
     const items = await Item.find(query)
       .populate("categoryId")
       .populate("businessId")

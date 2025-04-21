@@ -78,7 +78,6 @@ export const getTelegrams = async (req, res, next) => {
       query.userId = userId;
     }
 
-    // Prevent normal users from filtering by userId (optional double-check)
     if (
       currentUser?.roleId?.slug !== "admin" &&
       userId &&
@@ -180,15 +179,19 @@ export const updateTelegram = async (req, res, next) => {
       );
     }
 
-    const updatedTelegram = await Telegram.findByIdAndUpdate(
-      id,
-      { name, username, phoneNumber, status },
-      { new: true, runValidators: true }
+    console.log(username);
+
+    if (name) telegram.name = name;
+    if (username) telegram.username = username;
+    if (phoneNumber) telegram.phoneNumber = phoneNumber;
+    if (status) telegram.status = status;
+
+    const populatedTelegram = await Telegram.findById(telegram._id).populate(
+      "userId",
+      "name"
     );
 
-    const populatedTelegram = await Telegram.findById(
-      updatedTelegram._id
-    ).populate("userId", "name");
+    await telegram.save();
 
     emitTelegramEvent("telegramUpdated", populatedTelegram);
 

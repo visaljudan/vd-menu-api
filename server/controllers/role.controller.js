@@ -12,7 +12,7 @@ export const createRole = async (req, res, next) => {
     }
     const existingName = await Role.findOne({
       name: { $regex: new RegExp(`^${name}$`, "i") },
-    });
+    }); 
     if (existingName) {
       return sendError(res, 409, "Role name already exists");
     }
