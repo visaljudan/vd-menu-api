@@ -40,7 +40,7 @@ export const createItem = async (req, res, next) => {
     }
 
     // Extract businessId from category
-    const businessId = category.businessId;
+    const businessId = category.businessId._id;
 
     const newItem = await Item.create({
       businessId,
@@ -75,6 +75,7 @@ export const getItems = async (req, res, next) => {
       order = "desc",
       search = "",
       userId,
+      businessId,
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -85,6 +86,9 @@ export const getItems = async (req, res, next) => {
       const businesses = await Business.find({ userId }).select("_id");
       const businessIds = businesses.map((b) => b._id);
       query.businessId = { $in: businessIds };
+    }
+
+    if (businessId) {
     }
 
     // Step 2: Add search condition
@@ -119,7 +123,7 @@ export const getItems = async (req, res, next) => {
 
 export const getItem = async (req, res, next) => {
   try {
-    const { id } = res.params;
+    const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, "Invalid Item ID format.");
