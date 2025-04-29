@@ -89,6 +89,10 @@ export const getItems = async (req, res, next) => {
     }
 
     if (businessId) {
+      if (!mongoose.Types.ObjectId.isValid(businessId)) {
+        return sendError(res, 400, "Invalid Business ID format.");
+      }
+      query.businessId = businessId;
     }
 
     // Step 2: Add search condition
