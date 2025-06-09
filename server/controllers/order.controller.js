@@ -1,192 +1,228 @@
-import Order from "../models/order.model.js";
-import OrderItem from "../models/order.model.js";
-import { sendSuccess, sendError } from "../utils/response.js";
+import mongoose from "mongoose";
+import Order from "../models/Order.js";
+import Business from "../models/Business.js";
+import Item from "../models/Item.js";
+import { sendError, sendSuccess } from "../utils/responseHelpers.js";
+import { emitOrderEvent } from "../utils/eventEmitters.js";
 
-/**
- * @swagger
- * /api/v1/orders:
- *   post:
- *     summary: Create a new order
- *     tags: [Orders]
- *     description: Create a new order by providing buyer information, business, and order items.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               buyer:
- *                 type: object
- *                 required:
- *                   - name
- *                   - phone
- *                 properties:
- *                   name:
- *                     type: string
- *                   phone:
- *                     type: string
- *                   telegram:
- *                     type: string
- *               business:
- *                 type: string
- *               orderItems:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     itemId:
- *                       type: string
- *                     quantity:
- *                       type: integer
- *                     price:
- *                       type: number
- *                       format: float
- *     responses:
- *       201:
- *         description: Order created successfully
- *       400:
- *         description: Missing required fields
- *       500:
- *         description: Server error
- */
-
+// Create Order
 export const createOrder = async (req, res, next) => {
   try {
-    const { buyer, business, orderItems } = req.body;
+    const { name, phone, address, businessId, items, note } = req.body;
+    const currentUser = req.user;
 
-    if (!buyer || !business || !orderItems || orderItems.length === 0) {
-      return sendError(res, 400, "Missing required fields");
+    // Validate required fields
+    if (
+      !name ||
+      !phone ||
+      !address ||
+      !businessId ||
+      !items ||
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
+      return sendError(res, 400, "Missing required fields or empty items.");
     }
 
-    let totalAmount = 0;
-    const orderItemDocs = [];
+    // Validate businessId
+    if (!mongoose.Types.ObjectId.isValid(businessId)) {
+      return sendError(res, 400, "Invalid Business ID format.");
+    }
 
-    for (const item of orderItems) {
-      const { itemId, quantity, price } = item;
-      const subtotal = quantity * price;
-      totalAmount += subtotal;
+    const business = await Business.findById(businessId);
+    if (!business) {
+      return sendError(res, 404, "Business not found.");
+    }
 
-      const orderItem = await OrderItem.create({
-        item: itemId,
+    // Ensure user owns the business
+    if (
+      business.userId.toString() !== currentUser._id.toString() &&
+      currentUser.roleId.slug !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "You are not allowed to use this Business ID."
+      );
+    }
+
+    // Prepare order items and calculate total
+    let orderItems = [];
+    let total = 0;
+
+    for (const item of items) {
+      if (!mongoose.Types.ObjectId.isValid(item.itemId)) {
+        return sendError(res, 400, "Invalid Item ID format.");
+      }
+
+      const dbItem = await Item.findById(item.itemId);
+      if (!dbItem) {
+        return sendError(res, 404, `Item not found: ${item.itemId}`);
+      }
+
+      const unitPrice = item.unitPrice ?? dbItem.price; // Use provided price or Item price
+      const quantity = item.quantity ?? 1;
+      const itemTotal = unitPrice * quantity;
+
+      orderItems.push({
+        itemId: item.itemId,
+        unitPrice,
         quantity,
-        price,
-        subtotal,
+        total: itemTotal,
       });
-      orderItemDocs.push(orderItem._id);
+
+      total += itemTotal;
     }
 
-    const order = await Order.create({
-      buyer,
-      business,
-      orderItems: orderItemDocs,
-      totalAmount,
+    // Create and save the order
+    const newOrder = new Order({
+      name,
+      phone,
+      address,
+      business: businessId,
+      items: orderItems,
+      total,
+      note: note || "",
+      status: "pending",
     });
 
-    return sendSuccess(res, 201, "Order created successfully", order);
+    await newOrder.save();
+
+    const populatedOrder = await Order.findById(newOrder._id)
+      .populate("business", "name description")
+      .populate("items.itemId", "name price");
+
+    emitOrderEvent("orderCreated", populatedOrder);
+
+    return sendSuccess(res, 201, "Order created successfully", populatedOrder);
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @swagger
- * /api/v1/orders/user/{userId}:
- *   get:
- *     summary: Get all orders for a specific user
- *     tags: [Orders]
- *     description: Retrieve a list of orders based on the buyer's user ID.
- *     parameters:
- *       - name: userId
- *         in: path
- *         description: The ID of the user whose orders are being fetched.
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Orders retrieved successfully
- *       400:
- *         description: No orders found
- *       404:
- *         description: User not found
- */
-
-export const getOrdersByUser = async (req, res) => {
+// Get Orders (with pagination, sorting, search)
+export const getOrders = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    const orders = await Order.find({ buyer: userId }).populate("orderItems");
+    const {
+      page = 1,
+      limit = 10,
+      sort = "createdAt",
+      order = "desc",
+      search = "",
+      businessId,
+      userId,
+    } = req.query;
 
-    if (!orders || orders.length === 0) {
-      return sendError(res, 400, "No orders found");
+    const skip = (page - 1) * limit;
+    const query = {};
+
+    if (businessId) {
+      if (!mongoose.Types.ObjectId.isValid(businessId)) {
+        return sendError(res, 400, "Invalid Business ID format.");
+      }
+      query.business = businessId;
     }
 
-    return sendSuccess(res, 200, "Orders retrieved successfully", orders);
+    if (userId) {
+      const userBusinesses = await Business.find({ userId }).select("_id");
+      const businessUserFilterIds = userBusinesses.map((b) => b._id.toString());
+
+      if (businessId && !businessUserFilterIds.includes(businessId)) {
+        return sendError(
+          res,
+          404,
+          "No orders found for given businessId and userId."
+        );
+      }
+
+      if (!businessId) {
+        query.business = { $in: businessUserFilterIds };
+      }
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: new RegExp(search, "i") } },
+        { phone: { $regex: new RegExp(search, "i") } },
+        { address: { $regex: new RegExp(search, "i") } },
+      ];
+    }
+
+    const orders = await Order.find(query)
+      .populate("business", "name description")
+      .populate("items.itemId", "name price")
+      .sort({ [sort]: order === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await Order.countDocuments(query);
+
+    return sendSuccess(res, 200, "Orders fetched successfully", {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      data: orders,
+    });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @swagger
- * /api/v1/orders/{orderId}:
- *   put:
- *     summary: Update the status of an order
- *     tags: [Orders]
- *     description: Change the status of an order by providing the new status.
- *     parameters:
- *       - name: orderId
- *         in: path
- *         description: The ID of the order whose status needs to be updated.
- *         required: true
- *         schema:
- *           type: string
- *       - name: status
- *         in: body
- *         description: The new status of the order.
- *         required: true
- *         schema:
- *           type: object
- *           properties:
- *             status:
- *               type: string
- *               enum: [pending, processing, shipped, completed, canceled]
- *     responses:
- *       200:
- *         description: Order status updated successfully
- *       400:
- *         description: Invalid status or missing fields
- *       404:
- *         description: Order not found
- */
-
-export const updateOrderStatus = async (req, res) => {
+// Get single Order
+export const getOrder = async (req, res, next) => {
   try {
-    const { orderId } = req.params;
-    const { status } = req.body;
+    const { id } = req.params;
 
-    const validStatuses = [
-      "pending",
-      "processing",
-      "shipped",
-      "completed",
-      "canceled",
-    ];
-    if (!validStatuses.includes(status)) {
-      return sendError(res, 400, "Invalid status");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid Order ID format.");
     }
 
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      { status },
-      { new: true }
-    );
+    const order = await Order.findById(id)
+      .populate("business", "name description")
+      .populate("items.itemId", "name price");
 
     if (!order) {
-      return sendError(res, 404, "Order not found");
+      return sendError(res, 404, "Order not found.");
     }
 
-    return sendSuccess(res, 200, "Order status updated successfully", order);
+    return sendSuccess(res, 200, "Order fetched successfully", order);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete Order
+export const deleteOrder = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid Order ID format.");
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return sendError(res, 404, "Order not found.");
+    }
+
+    const business = await Business.findById(order.business);
+    if (
+      currentUser._id.toString() !== business.userId.toString() &&
+      currentUser.roleId.slug !== "admin"
+    ) {
+      return sendError(
+        res,
+        403,
+        "Permission denied: Only the owner or an admin can delete this order."
+      );
+    }
+
+    await Order.findByIdAndDelete(id);
+
+    emitOrderEvent("orderDeleted", id);
+
+    return sendSuccess(res, 200, "Order deleted successfully");
   } catch (error) {
     next(error);
   }
