@@ -4,7 +4,7 @@ import {
   getOrders,
   getOrder,
   deleteOrder,
-} from "../controllers/orderController.js";
+} from "../controllers/order.controller.js";
 import { auth } from "../utils/verify.js";
 
 const orderRouter = express.Router();
@@ -13,7 +13,7 @@ orderRouter.post("/", auth, createOrder);
 
 orderRouter.get("/", auth, getOrders);
 
-rouorderRouterter.get("/:id", auth, getOrder);
+orderRouter.get("/:id", auth, getOrder);
 
 orderRouter.delete("/:id", auth, deleteOrder);
 

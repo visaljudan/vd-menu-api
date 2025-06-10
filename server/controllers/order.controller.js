@@ -1,9 +1,8 @@
 import mongoose from "mongoose";
-import Order from "../models/Order.js";
-import Business from "../models/Business.js";
-import Item from "../models/Item.js";
-import { sendError, sendSuccess } from "../utils/responseHelpers.js";
-import { emitOrderEvent } from "../utils/eventEmitters.js";
+import Order from "../models/order.model.js";
+import Business from "../models/business.model.js";
+import Item from "../models/item.model.js";
+import { sendError, sendSuccess } from "../utils/response.js";
 
 // Create Order
 export const createOrder = async (req, res, next) => {
@@ -92,7 +91,7 @@ export const createOrder = async (req, res, next) => {
       .populate("business", "name description")
       .populate("items.itemId", "name price");
 
-    emitOrderEvent("orderCreated", populatedOrder);
+    // emitOrderEvent("orderCreated", populatedOrder);
 
     return sendSuccess(res, 201, "Order created successfully", populatedOrder);
   } catch (error) {
@@ -220,7 +219,7 @@ export const deleteOrder = async (req, res, next) => {
 
     await Order.findByIdAndDelete(id);
 
-    emitOrderEvent("orderDeleted", id);
+    // emitOrderEvent("orderDeleted", id);
 
     return sendSuccess(res, 200, "Order deleted successfully");
   } catch (error) {

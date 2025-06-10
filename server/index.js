@@ -22,6 +22,7 @@ import itemRouter from "./routes/item.route.js";
 import businessRouter from "./routes/business.route.js";
 import orderRouter from "./routes/order.route.js";
 import orderItemRouter from "./routes/orderItem.route.js";
+import dashboardRouter from "./routes/dashboard.route.js";
 
 dotenv.config();
 const app = express();
@@ -75,6 +76,7 @@ app.use("/api/v1/categories", categoryRouter);
 app.use("/api/v1/items", itemRouter);
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/order-items", orderItemRouter);
+app.use("/api/v1/dashboard", dashboardRouter);
 
 app.get("/socket-io", (req, res) => {
   sendSuccess(res, 200, "Socket.IO Server is running");
